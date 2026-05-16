@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src 'self' https://fonts.gstatic.com https://unpkg.com; img-src 'self' data: https://ui-avatars.com blob:; media-src * blob: mediastream: data:; connect-src * ws: wss: https://nominatim.openstreetmap.org https://ipapi.co;">
+  <title>Facemask AI Crowd Dashboard</title>
+  <!-- Modern font: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Boxicons for modern icons -->
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <link rel="stylesheet" href="./style.css">
+  <!-- AI & Charts -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+  <div class="dashboard-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar glass-panel">
+      <div class="brand">
+        <i class='bx bx-scan'></i>
+        <h2>Facemask AI Crowd Dashboard</h2>
+        <span>AI Vision</span>
+      </div>
+      <nav class="nav-menu" id="nav-menu">
+        <a href="#" data-target="view-dashboard" class="nav-item active"><i class='bx bx-grid-alt'></i> Dashboard</a>
+        <a href="#" data-target="view-feeds" class="nav-item"><i class='bx bx-video'></i> Live Feeds</a>
+        <a href="#" data-target="view-analytics" class="nav-item"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
+        <a href="#" data-target="view-alerts" class="nav-item"><i class='bx bx-bell'></i> Alerts <span class="badge"
+            id="nav-badge">3</span></a>
+        <a href="#" class="nav-item disabled"><i class='bx bx-cog'></i> Settings</a>
+      </nav>
+      <div class="network-status">
+        <div class="status-indicator"></div>
+        <div>
+          <h4>Network</h4>
+          <p>End-to-End Encrypted</p>
+        </div>
+      </div>
+
+      <!-- No-Mask Violations Panel -->
+      <div class="no-mask-panel glass-panel" id="no-mask-panel">
+        <div class="nm-header">
+          <span><i class='bx bx-mask'></i> No-Mask Violations</span>
+          <span class="nm-badge" id="no-mask-count">0</span>
+        </div>
+        <div class="nm-list" id="no-mask-list">
+          <div class="vmsg"><i class="bx bx-check-shield"></i> All persons compliant</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Header -->
+      <header class="header">
+        <div class="header-title">
+          <h1 id="header-page-title">Crowd Management & Security</h1>
+          <p>Real-time AI surveillance network active. Monitoring Zone Alpha.</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-outline"><i class='bx bx-export'></i> Export Log</button>
+          <button class="btn btn-outline" id="theme-toggle"><i class='bx bx-moon'></i> High Contrast</button>
+          <div class="profile">
+            <img src="https://ui-avatars.com/api/?name=Security&background=1f2937&color=fff" alt="Profile">
+          </div>
+        </div>
+      </header>
+
+      <div id="views-wrapper">
+        <!-- ============================================== -->
+        <!-- VIEW: DASHBOARD -->
+        <!-- ============================================== -->
+        <section id="view-dashboard" class="view-section active">
+          <!-- Stats Grid -->
+          <div class="stats-grid" style="margin-bottom: 1.5rem;">
+            <div class="stat-card glass-panel">
+              <div class="stat-header">
+                <h3>Total Crowd Count</h3>
+                <i class='bx bx-group icon-blue'></i>
+              </div>
+              <div class="stat-value" id="total-crowd">14,392</div>
+              <div class="stat-trend trend-up"><i class='bx bx-up-arrow-alt'></i> +2.4% vs last hour</div>
+            </div>
+            <div class="stat-card glass-panel">
+              <div class="stat-header">
+                <h3>Mask Compliance</h3>
+                <i class='bx bx-mask icon-green'></i>
+              </div>
+              <div class="stat-value" id="mask-compliance">92.4%</div>
+              <div class="progress-bar">
+                <div class="progress-fill" id="mask-progress" style="width: 92.4%;"></div>
+              </div>
+            </div>
+            <div class="stat-card glass-panel alert-stat">
+              <div class="stat-header">
+                <h3>Active Alerts</h3>
+                <i class='bx bx-error icon-red'></i>
+              </div>
+              <div class="stat-value" id="active-alerts">3</div>
+              <div class="stat-desc">Requires immediate attention</div>
+            </div>
+          </div>
+
+          <div class="content-grid">
+            <!-- Live Camera Feeds -->
+            <div class="camera-feeds">
+              <div class="section-header">
+                <h2>Live Edge Feeds</h2>
+                <div class="live-badge"><span class="pulse"></span> LIVE</div>
+              </div>
+              <div class="feeds-grid">
+                <!-- Camera 1 (Webcam) -->
+                <div class="camera-card glass-panel" id="cam1-card">
+                  <div class="camera-header">
+                    <span>Cam 01: Live Entrance (Webcam)</span>
+                    <span class="status-encryption" id="status-encrypt"><i class='bx bx-lock-alt'></i>
+                      Securing...</span>
+                  </div>
+                  <div class="cam-gps-bar" id="cam1-gps">
+                    <i class='bx bx-map-pin'></i>
+                    <span id="cam1-gps-text">Requesting GPS location...</span>
+                    <span class="gps-acc" id="cam1-gps-acc"></span>
+                  </div>
+                  <div class="camera-view" id="webcam-container">
+                    <div class="start-overlay" id="start-overlay">
+                      <i class='bx bx-video-off'
+                        style="font-size: 3rem; margin-bottom: 1rem; color: var(--accent-red);"></i>
+                      <h3>Privacy Protection Active</h3>
+                      <p style="margin-bottom: 2rem; color: var(--text-secondary);">User authorization required to
+                        initialize AI analysis feed.</p>
+                      <button class="btn btn-primary" id="btn-start-monitor"><i class='bx bx-play-circle'></i> Start
+                        Monitoring</button>
+                    </div>
+                    <div class="encryption-overlay hidden" id="encryption-overlay">
+                      <i class='bx bx-check-shield icon-red pulse' style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                      <h3 class="crypto-title">ESTABLISHING SECURE PROTOCOL</h3>
+                      <div class="crypto-log" id="crypto-log">Generating RSA-4096 Keys...</div>
+                      <div class="crypto-bar">
+                        <div class="crypto-fill" id="crypto-progress"></div>
+                      </div>
+                    </div>
+                    <video id="webcam" autoplay muted playsinline></video>
+                    <div class="overlay-stats">
+                      <div class="overlay-item"><i class='bx bx-scan'></i> Target Detections: <span
+                          id="cam1-count">0</span></div>
+                      <div class="overlay-item alert-overlay" id="cam1-density">Detecting Faces...</div>
+                    </div>
+                  </div>
+                  <div class="feed-controls">
+                    <button class="control-btn" id="btn-night-vision" title="Toggle Night Vision"><i
+                        class='bx bx-low-vision'></i></button>
+                    <button class="control-btn" id="btn-snapshot" title="Capture Snapshot"><i
+                        class='bx bx-camera'></i></button>
+                    <div style="flex-grow: 1;"></div>
+                    <div class="overlay-item" style="border: none; background: none;">
+                      <span style="font-size: 0.7rem; color: var(--text-secondary); margin-right: 0.5rem;">AI
+                        SENSITIVITY:</span>
+                      <input type="range" id="sensitivity-range" min="0" max="100" value="75"
+                        style="width: 80px; vertical-align: middle; cursor: pointer;">
+                    </div>
+                  </div>
+                </div>
+                <!-- Camera 2 -->
+                <div class="camera-card glass-panel">
+                  <div class="camera-header">
+                    <span>Cam 02: North Gate Main</span>
+                    <span class="status-encryption secure"><i class='bx bx-check-shield'></i> E2E Secure</span>
+                  </div>
+                  <div class="cam-gps-bar cam-gps-static">
+                    <i class='bx bx-map-pin'></i>
+                    <span>19.0760° N, 72.8777° E &nbsp;·&nbsp; Mumbai, MH</span>
+                    <span class="gps-mask-summary" id="cam2-mask-bar"><i class='bx bx-mask'></i> 94.2% compliant</span>
+                  </div>
+                  <div class="camera-view">
+                    <img src="/camera2.png" alt="North Gate Feed">
+                    <div class="overlay-stats">
+                      <div class="overlay-item"><i class='bx bx-scan'></i> Target Detections: <span
+                          id="cam2-count">840</span></div>
+                      <div class="overlay-item alert-overlay warning-overlay" id="cam2-density">Density: HIGH</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Live Persons Info Table -->
+              <div class="persons-table-wrap glass-panel" style="margin-top:1rem;">
+                <div class="section-header" style="padding:0.9rem 1rem 0;">
+                  <h2><i class='bx bx-id-card' style="margin-right:0.4rem;color:var(--accent-cyan);"></i>Live Person
+                    Detection <span class="persons-live-badge">LIVE AI</span></h2>
+                  <span style="font-size:0.8rem;color:var(--text-secondary);">Faces detected: <strong id="persons-count"
+                      style="color:var(--text-primary);">0</strong></span>
+                </div>
+                <div style="overflow-x:auto;">
+                  <table class="persons-table">
+                    <thead>
+                      <tr>
+                        <th>Face ID</th>
+                        <th>Name</th>
+                        <th>Dept / Role</th>
+                        <th>Mask Status</th>
+                        <th>GPS Location</th>
+                        <th>Conf.</th>
+                        <th>Profile</th>
+                      </tr>
+                    </thead>
+                    <tbody id="persons-tbody">
+                      <tr>
+                        <td colspan="7" style="text-align:center;color:var(--text-secondary);padding:1rem;"><i
+                            class="bx bx-search-alt"></i> Scanning for faces...</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <!-- Alert Log -->
+            <div class="alert-log-section glass-panel">
+              <div class="section-header">
+                <h2>Recent Alerts</h2>
+                <button class="btn-text" id="btn-view-all-alerts">View All <i
+                    class='bx bx-right-arrow-alt'></i></button>
+              </div>
+              <div class="alert-list" id="alert-list">
+                <!-- Alerts injected via JS -->
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW: LIVE FEEDS DIRECTORY                     -->
+        <!-- ============================================== -->
+        <section id="view-feeds" class="view-section hidden">
+          <div class="section-header">
+            <h2>Multi-Stream Surveillance</h2>
+            <div class="live-badge"><span class="pulse"></span> AREA SECURE</div>
+          </div>
+          <div class="multi-grid">
+            <div class="camera-card glass-panel">
+              <div class="camera-header"><span>Sector 4 - Plaza</span><span class="status-encryption secure"><i class='bx bx-check-shield'></i> Connected</span></div>
+              <div class="cam-gps-bar cam-gps-static">
+                <i class='bx bx-map-pin'></i>
+                <span>28.7041° N, 77.1025° E &nbsp;·&nbsp; New Delhi</span>
+                <span class="gps-mask-summary"><i class='bx bx-mask'></i> 96.8% compliant</span>
+              </div>
+              <div class="camera-view"><img src="/camera1.png" style="filter: hue-rotate(45deg);">
+                <div class="overlay-stats">
+                  <div class="overlay-item"><i class='bx bx-check'></i> Nominal Flow</div>
+                  <div class="overlay-item alert-overlay">✓ All Masked</div>
+                </div>
+              </div>
+            </div>
+            <div class="camera-card glass-panel">
+              <div class="camera-header"><span>Sector 7 - West Gate</span><span class="status-encryption secure"><i class='bx bx-check-shield'></i> Connected</span></div>
+              <div class="cam-gps-bar cam-gps-static cam-gps-warn">
+                <i class='bx bx-map-pin'></i>
+                <span>12.9716° N, 77.5946° E &nbsp;·&nbsp; Bengaluru, KA</span>
+                <span class="gps-mask-summary gps-mask-alert"><i class='bx bx-mask'></i> 81.3% — ⚠ Violations</span>
+              </div>
+              <div class="camera-view"><img src="/camera2.png" style="filter: grayscale(0.5) contrast(1.2);">
+                <div class="overlay-stats">
+                  <div class="overlay-item"><i class='bx bx-error'></i> Crowd Peaking</div>
+                  <div class="overlay-item alert-overlay warning-overlay">⚠ 18 Without Mask</div>
+                </div>
+              </div>
+            </div>
+            <div class="camera-card glass-panel">
+              <div class="camera-header"><span>Sector 2 - Food Court</span><span class="status-encryption secure"><i class='bx bx-check-shield'></i> Connected</span></div>
+              <div class="cam-gps-bar cam-gps-static">
+                <i class='bx bx-map-pin'></i>
+                <span>22.5726° N, 88.3639° E &nbsp;·&nbsp; Kolkata, WB</span>
+                <span class="gps-mask-summary"><i class='bx bx-mask'></i> 98.1% compliant</span>
+              </div>
+              <div class="camera-view"><img src="/camera1.png" style="filter: saturate(1.5) hue-rotate(180deg);">
+                <div class="overlay-stats">
+                  <div class="overlay-item"><i class='bx bx-check'></i> Nominal Flow</div>
+                  <div class="overlay-item alert-overlay">✓ All Masked</div>
+                </div>
+              </div>
+            </div>
+            <div class="camera-card glass-panel">
+              <div class="camera-header"><span>Sector 1 - VIP Lane</span><span class="status-encryption secure"><i class='bx bx-check-shield'></i> Connected</span></div>
+              <div class="cam-gps-bar cam-gps-static">
+                <i class='bx bx-map-pin'></i>
+                <span>13.0827° N, 80.2707° E &nbsp;·&nbsp; Chennai, TN</span>
+                <span class="gps-mask-summary"><i class='bx bx-mask'></i> 100% compliant</span>
+              </div>
+              <div class="camera-view"><img src="/camera2.png" style="filter: sepia(0.8) hue-rotate(220deg);">
+                <div class="overlay-stats">
+                  <div class="overlay-item"><i class='bx bx-check'></i> All Clear</div>
+                  <div class="overlay-item alert-overlay">✓ All Masked</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW: ANALYTICS                                -->
+        <!-- ============================================== -->
+        <section id="view-analytics" class="view-section hidden">
+          <div class="stats-grid" style="margin-bottom: 1.5rem;">
+            <div class="stat-card glass-panel" style="grid-column: span 2;">
+              <div class="stat-header">
+                <h3>Crowd Density Flow (Last Hour)</h3><i class='bx bx-line-chart icon-blue'></i>
+              </div>
+              <div class="chart-container" style="position: relative; height:250px; width:100%"><canvas
+                  id="lineChart"></canvas></div>
+            </div>
+            <div class="stat-card glass-panel">
+              <div class="stat-header">
+                <h3>Mask Compliance Ratio</h3><i class='bx bx-pie-chart-alt-2 icon-green'></i>
+              </div>
+              <div class="chart-container"
+                style="position: relative; height:250px; width:100%; display:flex; justify-content:center;"><canvas
+                  id="doughnutChart"></canvas></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW: ALERTS / NOTIFICATIONS                   -->
+        <!-- ============================================== -->
+        <section id="view-alerts" class="view-section hidden">
+          <div class="glass-panel" style="padding: 1.5rem;">
+            <div class="section-header" style="margin-bottom: 2rem;">
+              <h2>Security Alert History Log</h2>
+              <button class="btn btn-outline" id="btn-resolve-all"><i class='bx bx-check-double'></i> Resolve All
+                Critical</button>
+            </div>
+            <table class="alert-table" id="full-alerts-table">
+              <thead>
+                <tr>
+                  <th>Severity</th>
+                  <th>Time</th>
+                  <th>Alert Description</th>
+                  <th>Zone</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="full-alerts-tbody">
+                <!-- JS Injected -->
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+      </div> <!-- /views-wrapper -->
+    </main>
+  </div>
+  <script type="module" src="/main.js"></script>
+
+  <!-- Person Profile Panel -->
+  <div class="profile-panel" id="profile-panel">
+    <button class="pp-close" id="pp-close"><i class='bx bx-x'></i></button>
+    <div class="pp-header">
+      <div class="pp-face-wrap">
+        <img id="pp-face" src="" alt="Face" style="display:none;">
+        <div id="pp-no-face" class="pp-no-face"><i class='bx bx-user'></i></div>
+      </div>
+      <div class="pp-header-info">
+        <h2 id="pp-name">—</h2>
+        <div class="pp-badges">
+          <span id="pp-status" class="pp-status-badge">—</span>
+          <span id="pp-mask" class="pp-mask-badge">—</span>
+        </div>
+        <div class="pp-ids">
+          <span id="pp-regid" style="font-family:monospace;color:var(--accent-cyan);">—</span>
+          &nbsp;·&nbsp;
+          <span>Face <span id="pp-faceid" style="color:var(--accent-blue);">—</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="pp-body">
+      <div class="pp-row"><i class='bx bx-building'></i>
+        <div><span class="pp-label">Department</span><span id="pp-dept" class="pp-val">—</span></div>
+      </div>
+      <div class="pp-row"><i class='bx bx-id-card'></i>
+        <div><span class="pp-label">Role</span><span id="pp-role" class="pp-val">—</span></div>
+      </div>
+      <div class="pp-row"><i class='bx bx-phone'></i>
+        <div><span class="pp-label">Phone</span><span id="pp-phone" class="pp-val">—</span></div>
+      </div>
+      <div class="pp-row"><i class='bx bx-envelope'></i>
+        <div><span class="pp-label">Email</span><span id="pp-email" class="pp-val" style="font-size:0.8rem;">—</span>
+        </div>
+      </div>
+      <div class="pp-row"><i class='bx bx-time'></i>
+        <div><span class="pp-label">Entry Time</span><span id="pp-entry" class="pp-val">—</span></div>
+      </div>
+      <div class="pp-row" id="pp-gps-row">
+        <i class='bx bx-map-pin' style="color:var(--accent-cyan);"></i>
+        <div>
+          <span class="pp-label">Detected GPS Location</span>
+          <span id="pp-gps" class="pp-val" style="font-family:monospace;font-size:0.8rem;">—</span>
+          <span id="pp-gps-addr" style="font-size:0.72rem;color:var(--text-secondary);margin-top:0.1rem;"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="profile-backdrop hidden" id="profile-backdrop"></div>
+</body>
+
+</html>
