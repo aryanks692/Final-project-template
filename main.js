@@ -794,13 +794,20 @@ class WebcamMaskDetector {
         });
       })
       .catch(err => {
-        console.error(err);
+        console.error('Camera Error:', err);
 
-        this.handleError(
-          err.name === 'NotAllowedError'
-            ? 'Camera permission denied'
-            : 'Camera unavailable'
-        );
+        let errorMessage = 'Camera unavailable';
+        if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+          errorMessage = 'Camera permission denied. Please allow access in your browser settings (URL bar) or ensure you are using a secure context (localhost/HTTPS).';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          errorMessage = 'Camera is already in use by another application (like Zoom/Teams) or has a hardware issue.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera found. Please connect a webcam.';
+        } else {
+          errorMessage = `Camera error: ${err.name} - ${err.message}`;
+        }
+
+        this.handleError(errorMessage);
       });
   }
 
