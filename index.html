@@ -34,7 +34,7 @@
         <a href="#" data-target="view-analytics" class="nav-item"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
         <a href="#" data-target="view-alerts" class="nav-item"><i class='bx bx-bell'></i> Alerts <span class="badge"
             id="nav-badge">3</span></a>
-        <a href="#" class="nav-item disabled"><i class='bx bx-cog'></i> Settings</a>
+        <a href="#" data-target="view-settings" class="nav-item"><i class='bx bx-cog'></i> Settings</a>
       </nav>
       <div class="network-status">
         <div class="status-indicator"></div>
@@ -350,6 +350,111 @@
                 <!-- JS Injected -->
               </tbody>
             </table>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW: SETTINGS                                 -->
+        <!-- ============================================== -->
+        <section id="view-settings" class="view-section hidden">
+          <div class="section-header">
+            <h2>System Configuration</h2>
+          </div>
+          
+          <div class="settings-grid">
+            <!-- Card 1: General Preferences -->
+            <div class="settings-card glass-panel">
+              <div class="settings-header">
+                <h3><i class='bx bx-slider'></i> General Preferences</h3>
+              </div>
+              <div class="settings-body">
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>High Contrast Theme</h4>
+                    <p>Enable high contrast mode for better visibility.</p>
+                  </div>
+                  <div class="setting-control">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setting-theme-toggle">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>Audio Alerts</h4>
+                    <p>Play sounds for emotion detection (Happy, Sad, Angry).</p>
+                  </div>
+                  <div class="setting-control">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setting-audio-toggle" checked>
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: AI & Detection -->
+            <div class="settings-card glass-panel">
+              <div class="settings-header">
+                <h3><i class='bx bx-brain'></i> AI & Detection</h3>
+              </div>
+              <div class="settings-body">
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>Global AI Sensitivity</h4>
+                    <p>Adjust the confidence threshold for face and emotion detection.</p>
+                  </div>
+                  <div class="setting-control">
+                    <input type="range" id="setting-global-sensitivity" min="0" max="100" value="75" class="range-slider">
+                    <span id="setting-sensitivity-val" class="range-val">75%</span>
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>Strict Mask Detection</h4>
+                    <p>Flag improper mask wearing (e.g. nose exposed) as violations.</p>
+                  </div>
+                  <div class="setting-control">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setting-strict-mask">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: Notifications -->
+            <div class="settings-card glass-panel">
+              <div class="settings-header">
+                <h3><i class='bx bx-bell'></i> Alerts & Notifications</h3>
+              </div>
+              <div class="settings-body">
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>Overcrowding Threshold</h4>
+                    <p>Trigger alert when zone capacity exceeds this limit.</p>
+                  </div>
+                  <div class="setting-control">
+                    <input type="number" id="setting-crowd-threshold" value="15000" class="number-input">
+                  </div>
+                </div>
+                <div class="setting-row">
+                  <div class="setting-info">
+                    <h4>Desktop Notifications</h4>
+                    <p>Show push notifications for critical security alerts.</p>
+                  </div>
+                  <div class="setting-control">
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="setting-desktop-notif">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

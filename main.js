@@ -234,6 +234,9 @@ function initRouting() {
       else if (targetId === 'view-alerts') {
         titleEl.innerText = 'Security Notification Center';
       }
+      else if (targetId === 'view-settings') {
+        titleEl.innerText = 'System Configuration';
+      }
     });
   });
 
@@ -621,8 +624,11 @@ class DashboardSim {
 // ============================================================
 let audioCtx = null;
 let lastHappyMusicTime = 0;
+let lastSadMusicTime = 0;
+let lastAngryMusicTime = 0;
 
 function playHappyMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
   const now = Date.now();
   if (now - lastHappyMusicTime < 5000) return; // Cooldown
   lastHappyMusicTime = now;
@@ -658,6 +664,86 @@ function playHappyMusic() {
     
     osc.start(audioCtx.currentTime + note.time);
     osc.stop(audioCtx.currentTime + note.time + 0.15);
+  });
+}
+
+function playSadMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
+  const now = Date.now();
+  if (now - lastSadMusicTime < 5000) return; // Cooldown
+  lastSadMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short sad sequence of notes (descending, minor)
+  const notes = [
+    { freq: 329.63, time: 0 },    // E4
+    { freq: 311.13, time: 0.4 },  // Eb4
+    { freq: 293.66, time: 0.8 },  // D4
+    { freq: 261.63, time: 1.2 }   // C4
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sine'; // Sine for softer, sadder sound
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + note.time + 0.1);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.4);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.4);
+  });
+}
+
+function playAngryMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
+  const now = Date.now();
+  if (now - lastAngryMusicTime < 5000) return; // Cooldown
+  lastAngryMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short angry sequence of notes (low, fast, dissonant)
+  const notes = [
+    { freq: 150, time: 0 },
+    { freq: 165, time: 0.1 },
+    { freq: 140, time: 0.2 },
+    { freq: 175, time: 0.3 }
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sawtooth'; // Sawtooth for harsher, angry sound
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + note.time + 0.02);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.1);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.1);
   });
 }
 
@@ -1137,6 +1223,10 @@ class WebcamMaskDetector {
             emotion = sorted[0][0];
             if (emotion === 'happy') {
               playHappyMusic();
+            } else if (emotion === 'sad') {
+              playSadMusic();
+            } else if (emotion === 'angry') {
+              playAngryMusic();
             }
           }
 
@@ -1666,12 +1756,13 @@ function showProfilePanel(faceId) {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+  initGPS();
   initRouting();
   initThemeToggle();
-  initGPS();
+  initSettings();
 
-  new DashboardSim();
-  new WebcamMaskDetector();
+  window._dashSim = new DashboardSim();
+  window._webcamSim = new WebcamMaskDetector();
 
   const closePanel = () => {
     document.getElementById('profile-panel')
@@ -1702,3 +1793,91 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// ============================================================
+// SETTINGS LOGIC
+// ============================================================
+let audioAlertsEnabled = true;
+let strictMaskDetection = false;
+let globalSensitivity = 75;
+let crowdThreshold = 15000;
+let desktopNotifications = false;
+
+function initSettings() {
+  const themeToggle = document.getElementById('setting-theme-toggle');
+  const audioToggle = document.getElementById('setting-audio-toggle');
+  const sensSlider = document.getElementById('setting-global-sensitivity');
+  const sensVal = document.getElementById('setting-sensitivity-val');
+  const strictMask = document.getElementById('setting-strict-mask');
+  const crowdThresh = document.getElementById('setting-crowd-threshold');
+  const desktopNotif = document.getElementById('setting-desktop-notif');
+
+  // Load from localStorage if exists
+  if (localStorage.getItem('theme-hc') === 'true') {
+    document.body.classList.add('high-contrast');
+    if (themeToggle) themeToggle.checked = true;
+    const headerThemeBtn = document.getElementById('theme-toggle');
+    if (headerThemeBtn) {
+      headerThemeBtn.innerHTML = `<i class='bx bx-sun'></i> Standard View`;
+    }
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener('change', (e) => {
+      document.body.classList.toggle('high-contrast', e.target.checked);
+      localStorage.setItem('theme-hc', e.target.checked);
+      
+      const headerThemeBtn = document.getElementById('theme-toggle');
+      if (headerThemeBtn) {
+        headerThemeBtn.innerHTML = e.target.checked 
+          ? `<i class='bx bx-sun'></i> Standard View`
+          : `<i class='bx bx-moon'></i> High Contrast`;
+      }
+    });
+  }
+
+  if (audioToggle) {
+    audioToggle.addEventListener('change', (e) => {
+      audioAlertsEnabled = e.target.checked;
+    });
+  }
+
+  if (sensSlider) {
+    sensSlider.addEventListener('input', (e) => {
+      globalSensitivity = e.target.value;
+      if (sensVal) sensVal.innerText = globalSensitivity + '%';
+      
+      // Update the dashboard slider too
+      const dashSlider = document.getElementById('sensitivity-range');
+      if (dashSlider) dashSlider.value = globalSensitivity;
+      
+      if (window._dashSim) window._dashSim.sensitivity = globalSensitivity / 100;
+    });
+  }
+
+  if (strictMask) {
+    strictMask.addEventListener('change', (e) => {
+      strictMaskDetection = e.target.checked;
+    });
+  }
+
+  if (crowdThresh) {
+    crowdThresh.addEventListener('change', (e) => {
+      crowdThreshold = parseInt(e.target.value) || 15000;
+    });
+  }
+
+  if (desktopNotif) {
+    desktopNotif.addEventListener('change', (e) => {
+      desktopNotifications = e.target.checked;
+      if (e.target.checked && typeof Notification !== 'undefined' && Notification.permission !== "granted") {
+        Notification.requestPermission().then(perm => {
+          if (perm !== "granted") {
+            e.target.checked = false;
+            desktopNotifications = false;
+          }
+        });
+      }
+    });
+  }
+}
