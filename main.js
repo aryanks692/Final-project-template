@@ -617,6 +617,51 @@ class DashboardSim {
 }
 
 // ============================================================
+// HAPPY MUSIC PLAYER
+// ============================================================
+let audioCtx = null;
+let lastHappyMusicTime = 0;
+
+function playHappyMusic() {
+  const now = Date.now();
+  if (now - lastHappyMusicTime < 5000) return; // Cooldown
+  lastHappyMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short happy sequence of notes
+  const notes = [
+    { freq: 523.25, time: 0 },
+    { freq: 659.25, time: 0.15 },
+    { freq: 783.99, time: 0.3 },
+    { freq: 1046.50, time: 0.45 }
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + note.time + 0.05);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.15);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.15);
+  });
+}
+
+// ============================================================
 // AI WEBCAM + FACE DETECTION + MASK DETECTION
 // ============================================================
 
@@ -700,7 +745,8 @@ class WebcamMaskDetector {
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
         faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
-        faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL)
+        faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
       ]);
       // Models ready — mark AI as active
       this.modelsLoaded = true;
@@ -770,8 +816,8 @@ class WebcamMaskDetector {
       .getUserMedia({
         video: {
           facingMode: 'user',
-          width: 640,
-          height: 480
+          width: { ideal: 640 },
+          height: { ideal: 480 }
         }
       })
       .then(stream => {
@@ -1019,7 +1065,8 @@ class WebcamMaskDetector {
             })
           )
           .withFaceLandmarks()
-          .withAgeAndGender();
+          .withAgeAndGender()
+          .withFaceExpressions();
 
         const resized = faceapi.resizeResults(
           detections,
@@ -1083,6 +1130,15 @@ class WebcamMaskDetector {
           const conf = Math.round(
             det.detection.score * 100
           );
+
+          let emotion = '?';
+          if (det.expressions) {
+            const sorted = Object.entries(det.expressions).sort((a, b) => b[1] - a[1]);
+            emotion = sorted[0][0];
+            if (emotion === 'happy') {
+              playHappyMusic();
+            }
+          }
 
           if (!masked) {
             noMaskCount++;
@@ -1226,7 +1282,7 @@ class WebcamMaskDetector {
           );
 
           const infoLabel =
-            `${profileEntry.profile.dept} · ~${age}yr`;
+            `${profileEntry.profile.dept} · ~${age}yr · ${emotion}`;
 
           ctx.font = '10px Inter, monospace';
 
