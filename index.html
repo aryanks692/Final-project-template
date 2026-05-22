@@ -34,6 +34,7 @@
         <a href="#" data-target="view-analytics" class="nav-item"><i class='bx bx-bar-chart-alt-2'></i> Analytics</a>
         <a href="#" data-target="view-alerts" class="nav-item"><i class='bx bx-bell'></i> Alerts <span class="badge"
             id="nav-badge">3</span></a>
+        <a href="#" data-target="view-registration" class="nav-item"><i class='bx bx-user-plus'></i> Registration <span class="reg-count-badge" id="reg-nav-count">0</span></a>
         <a href="#" data-target="view-settings" class="nav-item"><i class='bx bx-cog'></i> Settings</a>
       </nav>
       <div class="network-status">
@@ -348,6 +349,137 @@
                 style="position: relative; height:250px; width:100%; display:flex; justify-content:center;"><canvas
                   id="zoneRiskChart"></canvas></div>
             </div>
+          </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- VIEW: REGISTRATION DASHBOARD                   -->
+        <!-- ============================================== -->
+        <section id="view-registration" class="view-section hidden">
+          <div class="reg-layout">
+
+            <!-- ── Registration Form Card ── -->
+            <div class="glass-panel reg-form-card">
+              <div class="reg-form-header">
+                <div>
+                  <h2><i class='bx bx-user-plus'></i> Register New Person</h2>
+                  <p>Add a person to the system database. They will be recognized by the AI during live detection.</p>
+                </div>
+                <div class="reg-count-display">
+                  <span id="reg-total-count">0</span>
+                  <small>Registered</small>
+                </div>
+              </div>
+
+              <form id="reg-form" autocomplete="off">
+                <div class="reg-fields">
+                  <div class="reg-field-group">
+                    <label for="reg-name"><i class='bx bx-user'></i> Full Name</label>
+                    <input type="text" id="reg-name" placeholder="e.g. Aryan Kumar Singh" required />
+                  </div>
+
+                  <div class="reg-field-group">
+                    <label for="reg-usn"><i class='bx bx-id-card'></i> USN / ID</label>
+                    <input type="text" id="reg-usn" placeholder="e.g. 1RV21CS001" required />
+                  </div>
+
+                  <div class="reg-field-group">
+                    <label for="reg-branch"><i class='bx bx-building'></i> Branch / Department</label>
+                    <select id="reg-branch">
+                      <option value="Computer Science">Computer Science</option>
+                      <option value="Information Tech">Information Technology</option>
+                      <option value="Electronics Engg">Electronics Engineering</option>
+                      <option value="Mechanical Engg">Mechanical Engineering</option>
+                      <option value="Civil Engg">Civil Engineering</option>
+                      <option value="Biotechnology">Biotechnology</option>
+                      <option value="Administration">Administration</option>
+                      <option value="Security Dept">Security Department</option>
+                      <option value="Faculty">Faculty</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div class="reg-field-group">
+                    <label for="reg-role"><i class='bx bx-briefcase'></i> Role</label>
+                    <select id="reg-role">
+                      <option value="Student">Student</option>
+                      <option value="Staff">Staff</option>
+                      <option value="Professor">Professor</option>
+                      <option value="Security">Security</option>
+                      <option value="Admin">Admin</option>
+                    </select>
+                  </div>
+
+                  <div class="reg-field-group">
+                    <label for="reg-gender"><i class='bx bx-male-female'></i> Gender</label>
+                    <select id="reg-gender">
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div class="reg-field-group">
+                    <label for="reg-phone"><i class='bx bx-phone'></i> Phone (optional)</label>
+                    <input type="tel" id="reg-phone" placeholder="e.g. +91 98200 11001" />
+                  </div>
+
+                  <div class="reg-field-group" style="grid-column: span 2;">
+                    <label for="reg-email"><i class='bx bx-envelope'></i> Email (optional)</label>
+                    <input type="email" id="reg-email" placeholder="e.g. aryan@uni.edu" />
+                  </div>
+                </div>
+
+                <div class="reg-form-actions">
+                  <button type="submit" class="btn btn-primary" id="reg-submit-btn">
+                    <i class='bx bx-plus-circle'></i> Register Person
+                  </button>
+                  <button type="button" class="btn btn-outline" id="reg-clear-btn">
+                    <i class='bx bx-trash'></i> Clear Form
+                  </button>
+                </div>
+
+                <div id="reg-feedback" class="reg-feedback hidden"></div>
+              </form>
+            </div>
+
+            <!-- ── Registered Users Table Card ── -->
+            <div class="glass-panel reg-table-card">
+              <div class="reg-table-header">
+                <h2><i class='bx bx-list-ul'></i> Registered Persons</h2>
+                <div class="reg-table-actions">
+                  <input type="text" id="reg-search" placeholder="Search by name or USN..." class="reg-search-input" />
+                  <button class="btn btn-outline btn-danger" id="reg-clear-all-btn" title="Clear all registrations">
+                    <i class='bx bx-trash'></i> Clear All
+                  </button>
+                </div>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="reg-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Reg ID</th>
+                      <th>Name</th>
+                      <th>USN</th>
+                      <th>Branch / Role</th>
+                      <th>Gender</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="reg-tbody">
+                    <tr>
+                      <td colspan="8" style="text-align:center;color:var(--text-secondary);padding:2rem;">
+                        <i class="bx bx-user-x" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>
+                        No persons registered yet. Add one using the form above.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         </section>
 

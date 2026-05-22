@@ -4,20 +4,29 @@
 // ============================================================
 
 // ============================================================
-// REGISTRATION DATABASE (mock — replace with real API/DB)
+// REGISTRATION DATABASE  (persisted via localStorage)
 // ============================================================
-const REGISTERED_DB = [
-  { regId: 'REG-001', name: 'Aryan Kumar Singh', dept: 'Computer Science', role: 'Student', phone: '+91 98200 11001', email: 'aryan.singh@uni.edu', status: 'Active', gender: 'Male' },
-  { regId: 'REG-002', name: 'Priya Sharma', dept: 'Information Tech', role: 'Student', phone: '+91 98200 11002', email: 'priya.s@uni.edu', status: 'Active', gender: 'Female' },
-  { regId: 'REG-003', name: 'Rahul Mehta', dept: 'Security Dept', role: 'Staff', phone: '+91 98200 11003', email: 'r.mehta@security.uni', status: 'Active', gender: 'Male' },
-  { regId: 'REG-004', name: 'Sneha Patel', dept: 'Electronics Engg', role: 'Student', phone: '+91 98200 11004', email: 'sneha.p@uni.edu', status: 'Active', gender: 'Female' },
-  { regId: 'REG-005', name: 'Vikram Nair', dept: 'Mechanical Engg', role: 'Student', phone: '+91 98200 11005', email: 'vikram.n@uni.edu', status: 'Active', gender: 'Male' },
-  { regId: 'REG-006', name: 'Anjali Desai', dept: 'Administration', role: 'Staff', phone: '+91 98200 11006', email: 'a.desai@admin.uni', status: 'Active', gender: 'Female' },
-  { regId: 'REG-007', name: 'Rohan Gupta', dept: 'Civil Engg', role: 'Student', phone: '+91 98200 11007', email: 'rohan.g@uni.edu', status: 'Active', gender: 'Male' },
-  { regId: 'REG-008', name: 'Meera Krishnan', dept: 'Biotechnology', role: 'Student', phone: '+91 98200 11008', email: 'meera.k@uni.edu', status: 'Suspended', gender: 'Female' },
-  { regId: 'REG-009', name: 'Aditya Joshi', dept: 'Faculty', role: 'Professor', phone: '+91 98200 11009', email: 'a.joshi@faculty.uni', status: 'Active', gender: 'Male' },
-  { regId: 'REG-010', name: 'Kavya Reddy', dept: 'Computer Science', role: 'Student', phone: '+91 98200 11010', email: 'kavya.r@uni.edu', status: 'Active', gender: 'Female' },
-];
+
+/**
+ * Load from localStorage, or start with an empty array.
+ * Call saveRegisteredDB() after every mutation.
+ */
+function loadRegisteredDB() {
+  try {
+    const raw = localStorage.getItem('ai_registered_db');
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+function saveRegisteredDB() {
+  try {
+    localStorage.setItem('ai_registered_db', JSON.stringify(REGISTERED_DB));
+  } catch (e) { /* ignore */ }
+}
+
+let REGISTERED_DB = loadRegisteredDB();
+let _regIdCounter = REGISTERED_DB.length;
 
 // ============================================================
 // GLOBAL MAPS / STATES
@@ -236,6 +245,9 @@ function initRouting() {
       }
       else if (targetId === 'view-settings') {
         titleEl.innerText = 'System Configuration';
+      }
+      else if (targetId === 'view-registration') {
+        titleEl.innerText = 'Person Registration';
       }
     });
   });
@@ -1898,6 +1910,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initRouting();
   initThemeToggle();
   initSettings();
+  initRegistration();
 
   window._dashSim = new DashboardSim();
   window._webcamSim = new WebcamMaskDetector();
@@ -1931,6 +1944,184 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+
+// ============================================================
+// REGISTRATION LOGIC
+// ============================================================
+
+function generateRegId() {
+  _regIdCounter++;
+  return 'REG-' + String(_regIdCounter).padStart(3, '0');
+}
+
+function updateRegCounters() {
+  const n = REGISTERED_DB.length;
+  const countEl   = document.getElementById('reg-total-count');
+  const navBadge  = document.getElementById('reg-nav-count');
+  if (countEl)  countEl.textContent  = n;
+  if (navBadge) navBadge.textContent = n;
+}
+
+function renderRegistrationTable(filter = '') {
+  const tbody = document.getElementById('reg-tbody');
+  if (!tbody) return;
+
+  const q = filter.trim().toLowerCase();
+  const rows = q
+    ? REGISTERED_DB.filter(p =>
+        p.name.toLowerCase().includes(q) ||
+        p.usn.toLowerCase().includes(q)
+      )
+    : REGISTERED_DB;
+
+  if (rows.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center;color:var(--text-secondary);padding:2rem;">
+          <i class="bx bx-user-x" style="font-size:2rem;display:block;margin-bottom:0.5rem;"></i>
+          ${q ? 'No results match your search.' : 'No persons registered yet. Add one using the form above.'}
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = '';
+  rows.forEach((p, idx) => {
+    const genderClass =
+      p.gender === 'Male'   ? 'reg-gender-male' :
+      p.gender === 'Female' ? 'reg-gender-female' : 'reg-gender-other';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--text-secondary);font-size:0.75rem;">${idx + 1}</td>
+      <td><span class="reg-regid-badge">${p.regId}</span></td>
+      <td class="reg-name-cell">
+        <strong>${p.name}</strong>
+        <span>${p.usn}</span>
+      </td>
+      <td style="font-family:monospace;font-size:0.8rem;color:var(--accent-cyan);">${p.usn}</td>
+      <td>
+        <div class="reg-branch-cell">${p.dept}</div>
+        <div class="reg-branch-role">${p.role}</div>
+      </td>
+      <td><span class="reg-gender-pill ${genderClass}">${p.gender}</span></td>
+      <td><span class="reg-status-active">Active</span></td>
+      <td>
+        <button class="reg-delete-btn" data-regid="${p.regId}">
+          <i class="bx bx-trash"></i> Remove
+        </button>
+      </td>`;
+
+    tr.querySelector('.reg-delete-btn').addEventListener('click', () => {
+      if (!confirm(`Remove ${p.name} from the database?`)) return;
+      const i = REGISTERED_DB.findIndex(x => x.regId === p.regId);
+      if (i !== -1) {
+        REGISTERED_DB.splice(i, 1);
+        saveRegisteredDB();
+        updateRegCounters();
+        renderRegistrationTable(
+          document.getElementById('reg-search')?.value || ''
+        );
+        showRegFeedback(`${p.name} removed.`, 'success');
+      }
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+function showRegFeedback(msg, type = 'success') {
+  const fb = document.getElementById('reg-feedback');
+  if (!fb) return;
+  fb.className = `reg-feedback ${type}`;
+  fb.innerHTML = `<i class="bx ${type === 'success' ? 'bx-check-circle' : 'bx-error-circle'}"></i> ${msg}`;
+  clearTimeout(fb._timer);
+  fb._timer = setTimeout(() => {
+    fb.className = 'reg-feedback hidden';
+  }, 4000);
+}
+
+function initRegistration() {
+  // Render table with whatever is already in localStorage
+  renderRegistrationTable();
+  updateRegCounters();
+
+  const form    = document.getElementById('reg-form');
+  const nameEl  = document.getElementById('reg-name');
+  const usnEl   = document.getElementById('reg-usn');
+  const branchEl= document.getElementById('reg-branch');
+  const roleEl  = document.getElementById('reg-role');
+  const genderEl= document.getElementById('reg-gender');
+  const phoneEl = document.getElementById('reg-phone');
+  const emailEl = document.getElementById('reg-email');
+  const searchEl= document.getElementById('reg-search');
+
+  form?.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const name   = nameEl?.value.trim();
+    const usn    = usnEl?.value.trim();
+    const dept   = branchEl?.value || 'Computer Science';
+    const role   = roleEl?.value   || 'Student';
+    const gender = genderEl?.value || 'Male';
+    const phone  = phoneEl?.value.trim()  || '—';
+    const email  = emailEl?.value.trim()  || '—';
+
+    if (!name || !usn) {
+      showRegFeedback('Full Name and USN are required.', 'error');
+      return;
+    }
+
+    // Duplicate USN check
+    if (REGISTERED_DB.some(p => p.usn === usn)) {
+      showRegFeedback(`USN "${usn}" is already registered.`, 'error');
+      return;
+    }
+
+    const newEntry = {
+      regId : generateRegId(),
+      name,
+      usn,
+      dept,
+      role,
+      gender,
+      phone,
+      email,
+      status: 'Active'
+    };
+
+    REGISTERED_DB.push(newEntry);
+    saveRegisteredDB();
+    updateRegCounters();
+    renderRegistrationTable(
+      document.getElementById('reg-search')?.value || ''
+    );
+    showRegFeedback(`${name} registered successfully as ${newEntry.regId}!`, 'success');
+    form.reset();
+  });
+
+  document.getElementById('reg-clear-btn')?.addEventListener('click', () => {
+    form?.reset();
+  });
+
+  document.getElementById('reg-clear-all-btn')?.addEventListener('click', () => {
+    if (REGISTERED_DB.length === 0) {
+      showRegFeedback('Database is already empty.', 'error');
+      return;
+    }
+    if (!confirm('This will permanently remove ALL registered persons. Continue?')) return;
+    REGISTERED_DB.length = 0;
+    _regIdCounter = 0;
+    saveRegisteredDB();
+    updateRegCounters();
+    renderRegistrationTable();
+    showRegFeedback('All registrations cleared.', 'success');
+  });
+
+  searchEl?.addEventListener('input', () => {
+    renderRegistrationTable(searchEl.value);
+  });
+}
 
 // ============================================================
 // SETTINGS LOGIC
