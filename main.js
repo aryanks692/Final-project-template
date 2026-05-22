@@ -1174,11 +1174,9 @@ class WebcamMaskDetector {
 
         extractCtx.save();
 
-        extractCtx.scale(-1, 1);
-
         extractCtx.drawImage(
           this.video,
-          -extractCanvas.width,
+          0,
           0,
           extractCanvas.width,
           extractCanvas.height
