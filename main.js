@@ -1,0 +1,1882 @@
+// ============================================================
+// AI CROWD MANAGEMENT & SECURITY SYSTEM
+// FULL UPDATED COMBINED JAVASCRIPT CODE
+// ============================================================
+
+// ============================================================
+// REGISTRATION DATABASE (mock — replace with real API/DB)
+// ============================================================
+const REGISTERED_DB = [
+  { regId: 'REG-001', name: 'Aryan Kumar Singh', dept: 'Computer Science', role: 'Student', phone: '+91 98200 11001', email: 'aryan.singh@uni.edu', status: 'Active', gender: 'Male' },
+  { regId: 'REG-002', name: 'Priya Sharma', dept: 'Information Tech', role: 'Student', phone: '+91 98200 11002', email: 'priya.s@uni.edu', status: 'Active', gender: 'Female' },
+  { regId: 'REG-003', name: 'Rahul Mehta', dept: 'Security Dept', role: 'Staff', phone: '+91 98200 11003', email: 'r.mehta@security.uni', status: 'Active', gender: 'Male' },
+  { regId: 'REG-004', name: 'Sneha Patel', dept: 'Electronics Engg', role: 'Student', phone: '+91 98200 11004', email: 'sneha.p@uni.edu', status: 'Active', gender: 'Female' },
+  { regId: 'REG-005', name: 'Vikram Nair', dept: 'Mechanical Engg', role: 'Student', phone: '+91 98200 11005', email: 'vikram.n@uni.edu', status: 'Active', gender: 'Male' },
+  { regId: 'REG-006', name: 'Anjali Desai', dept: 'Administration', role: 'Staff', phone: '+91 98200 11006', email: 'a.desai@admin.uni', status: 'Active', gender: 'Female' },
+  { regId: 'REG-007', name: 'Rohan Gupta', dept: 'Civil Engg', role: 'Student', phone: '+91 98200 11007', email: 'rohan.g@uni.edu', status: 'Active', gender: 'Male' },
+  { regId: 'REG-008', name: 'Meera Krishnan', dept: 'Biotechnology', role: 'Student', phone: '+91 98200 11008', email: 'meera.k@uni.edu', status: 'Suspended', gender: 'Female' },
+  { regId: 'REG-009', name: 'Aditya Joshi', dept: 'Faculty', role: 'Professor', phone: '+91 98200 11009', email: 'a.joshi@faculty.uni', status: 'Active', gender: 'Male' },
+  { regId: 'REG-010', name: 'Kavya Reddy', dept: 'Computer Science', role: 'Student', phone: '+91 98200 11010', email: 'kavya.r@uni.edu', status: 'Active', gender: 'Female' },
+];
+
+// ============================================================
+// GLOBAL MAPS / STATES
+// ============================================================
+
+// Maps faceId → { profile, faceDataUrl, entryTime, masked, gps }
+const faceProfileMap = new Map();
+
+// Live GPS state from browser Geolocation API
+let liveGPS = null;
+
+// ============================================================
+// GPS + GEOLOCATION MODULE
+// ============================================================
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+    );
+
+    const data = await res.json();
+    const addr = data.address;
+
+    return (
+      addr.city ||
+      addr.town ||
+      addr.village ||
+      addr.county ||
+      ''
+    );
+  } catch {
+    return '';
+  }
+}
+
+function updateGPSBar(lat, lng, acc, city, source) {
+  const textEl = document.getElementById('cam1-gps-text');
+  const accEl = document.getElementById('cam1-gps-acc');
+  const bar = document.getElementById('cam1-gps');
+
+  if (textEl) {
+    textEl.textContent = `${lat}° N, ${lng}° E${city ? ' · ' + city : ''}`;
+  }
+
+  if (accEl) {
+    accEl.textContent = source === 'gps'
+      ? `±${acc}m GPS`
+      : `IP-based`;
+  }
+
+  if (bar) {
+    bar.style.cursor = 'pointer';
+    bar.title = 'Open in Google Maps';
+
+    bar.onclick = () => {
+      window.open(
+        `https://www.google.com/maps?q=${lat},${lng}`,
+        '_blank'
+      );
+    };
+  }
+}
+
+async function initGPS() {
+  const textEl = document.getElementById('cam1-gps-text');
+
+  // ------------------------------------------------------------
+  // Stage 1 → IP Based Location
+  // ------------------------------------------------------------
+  try {
+    if (textEl) {
+      textEl.textContent = 'Resolving location...';
+    }
+
+    const res = await fetch('https://ipapi.co/json/');
+    const data = await res.json();
+
+    if (data.latitude && data.longitude) {
+      const lat = Number(data.latitude).toFixed(5);
+      const lng = Number(data.longitude).toFixed(5);
+      const city = data.city || data.region || '';
+
+      liveGPS = {
+        lat,
+        lng,
+        accuracy: 2000,
+        city
+      };
+
+      updateGPSBar(lat, lng, 2000, city, 'ip');
+    }
+  } catch (e) {
+    console.error(e);
+
+    if (textEl) {
+      textEl.textContent = 'Location fetch failed';
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Stage 2 → Browser GPS
+  // ------------------------------------------------------------
+  if (!navigator.geolocation) return;
+
+  navigator.geolocation.watchPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude.toFixed(5);
+      const lng = pos.coords.longitude.toFixed(5);
+      const acc = Math.round(pos.coords.accuracy);
+
+      let city = liveGPS?.city || '';
+
+      if (
+        !liveGPS ||
+        Math.abs(Number(liveGPS.lat) - Number(lat)) > 0.001
+      ) {
+        city = await reverseGeocode(lat, lng);
+      }
+
+      liveGPS = {
+        lat,
+        lng,
+        accuracy: acc,
+        city
+      };
+
+      updateGPSBar(lat, lng, acc, city, 'gps');
+    },
+    () => {
+      // Silent fail
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 5000
+    }
+  );
+}
+
+// ============================================================
+// PROFILE ASSIGNMENT
+// ============================================================
+
+function getOrAssignProfile(faceId) {
+  if (faceProfileMap.has(faceId)) {
+    return faceProfileMap.get(faceId);
+  }
+
+  const profile = REGISTERED_DB[(faceId - 1) % REGISTERED_DB.length];
+
+  const entry = {
+    profile,
+    faceDataUrl: null,
+    entryTime: new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }),
+    masked: true,
+    gps: null
+  };
+
+  faceProfileMap.set(faceId, entry);
+
+  return entry;
+}
+
+// ============================================================
+// SPA ROUTING
+// ============================================================
+
+function initRouting() {
+  document.querySelectorAll('.nav-item').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      if (link.classList.contains('disabled')) return;
+
+      const targetId = link.getAttribute('data-target');
+      if (!targetId) return;
+
+      // Update navigation active state
+      document.querySelectorAll('.nav-item').forEach(n => {
+        n.classList.remove('active');
+      });
+
+      link.classList.add('active');
+
+      // Show selected section
+      document.querySelectorAll('.view-section').forEach(section => {
+        section.classList.add('hidden');
+      });
+
+      const targetView = document.getElementById(targetId);
+
+      if (targetView) {
+        targetView.classList.remove('hidden');
+      }
+
+      // Dynamic Header Title
+      const titleEl = document.getElementById('header-page-title');
+
+      if (!titleEl) return;
+
+      if (targetId === 'view-dashboard') {
+        titleEl.innerText = 'Crowd Management & Security';
+      }
+      else if (targetId === 'view-feeds') {
+        titleEl.innerText = 'Live Feed Directory';
+      }
+      else if (targetId === 'view-analytics') {
+        titleEl.innerText = 'Deep AI Analytics';
+      }
+      else if (targetId === 'view-alerts') {
+        titleEl.innerText = 'Security Notification Center';
+      }
+      else if (targetId === 'view-settings') {
+        titleEl.innerText = 'System Configuration';
+      }
+    });
+  });
+
+  document.getElementById('btn-view-all-alerts')?.addEventListener('click', () => {
+    const alertLink = document.querySelector(
+      '.nav-item[data-target="view-alerts"]'
+    );
+
+    if (alertLink) {
+      alertLink.click();
+    }
+  });
+}
+
+// ============================================================
+// THEME TOGGLE
+// ============================================================
+
+function initThemeToggle() {
+  const toggle = document.getElementById('theme-toggle');
+
+  if (!toggle) return;
+
+  toggle.addEventListener('click', () => {
+    document.body.classList.toggle('high-contrast');
+
+    const isHC = document.body.classList.contains('high-contrast');
+
+    toggle.innerHTML = isHC
+      ? `<i class='bx bx-sun'></i> Standard View`
+      : `<i class='bx bx-moon'></i> High Contrast`;
+  });
+}
+
+// ============================================================
+// DASHBOARD SIMULATOR + ANALYTICS
+// ============================================================
+
+class DashboardSim {
+  constructor() {
+    this.totalCrowd = 14392;
+    this.maskCompliance = 92.4;
+    this.activeAlerts = 3;
+    this.cam2Detections = 840;
+    this.sensitivity = 0.75;
+
+    this.alertTemplates = [
+      {
+        type: 'critical',
+        title: 'Overcrowding Detected',
+        message: 'Zone Alpha has exceeded capacity limit.',
+        icon: 'bx-error-circle',
+        zone: 'Zone Alpha'
+      },
+      {
+        type: 'warning',
+        title: 'Mask Rule Violation',
+        message: 'Cluster without masks at Entrance.',
+        icon: 'bx-mask',
+        zone: 'North Gate'
+      },
+      {
+        type: 'info',
+        title: 'Crowd Flow Normal',
+        message: 'Density returning to expected levels.',
+        icon: 'bx-info-circle',
+        zone: 'Sector 4'
+      },
+      {
+        type: 'critical',
+        title: 'Perimeter Breach',
+        message: 'Unauthorized access detected.',
+        icon: 'bx-shield-x',
+        zone: 'VIP Tent'
+      }
+    ];
+
+    this.init();
+    window._dashSim = this;
+  }
+
+  init() {
+    this.initCharts();
+    this.startSimulation();
+    this.populateInitialAlerts();
+
+    document.getElementById('btn-resolve-all')?.addEventListener('click', () => {
+      this.activeAlerts = 0;
+      this.updateAlertCounters();
+
+      const tbody = document.getElementById('full-alerts-tbody');
+      if (tbody) tbody.innerHTML = '';
+    });
+
+    document.getElementById('sensitivity-range')?.addEventListener('input', (e) => {
+      this.sensitivity = e.target.value / 100;
+      console.log('AI Sensitivity:', this.sensitivity);
+    });
+  }
+
+  initCharts() {
+    this.crowdHistory = Array(20)
+      .fill(14300)
+      .map((v, i) => v + i * 2);
+
+    // --------------------------------------------------------
+    // Line Chart
+    // --------------------------------------------------------
+
+    const ctxLine = document
+      .getElementById('lineChart')
+      ?.getContext('2d');
+
+    if (ctxLine) {
+      this.lineChart = new Chart(ctxLine, {
+        type: 'line',
+
+        data: {
+          labels: Array(20).fill(''),
+          datasets: [
+            {
+              label: 'Crowd Flow',
+              data: this.crowdHistory,
+              borderColor: '#3b82f6',
+              borderWidth: 3,
+              backgroundColor: 'rgba(59,130,246,0.2)',
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0
+            }
+          ]
+        },
+
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+
+          scales: {
+            x: {
+              display: false
+            },
+
+            y: {
+              display: true,
+              beginAtZero: false,
+              suggestedMin: 14000
+            }
+          },
+
+          plugins: {
+            legend: {
+              display: false
+            }
+          }
+        }
+      });
+    }
+
+    // --------------------------------------------------------
+    // Doughnut Chart
+    // --------------------------------------------------------
+
+    const ctxDoughnut = document
+      .getElementById('doughnutChart')
+      ?.getContext('2d');
+
+    if (ctxDoughnut) {
+      this.doughnutChart = new Chart(ctxDoughnut, {
+        type: 'doughnut',
+
+        data: {
+          labels: ['Mask Compliant', 'No Mask'],
+
+          datasets: [
+            {
+              data: [92.4, 7.6],
+              backgroundColor: ['#10b981', '#ef4444'],
+              borderWidth: 0
+            }
+          ]
+        },
+
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '75%',
+
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#f8fafc',
+                font: {
+                  family: 'Inter'
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+
+  startSimulation() {
+    setInterval(() => this.updateStats(), 2500);
+    setInterval(() => this.generateAlert(), 15000);
+  }
+
+  updateStats() {
+    const crowdDiff = Math.floor(Math.random() * 20) - 8;
+    this.totalCrowd += crowdDiff;
+
+    const maskDiff = (Math.random() * 0.4) - 0.2;
+
+    this.maskCompliance = Math.max(
+      0,
+      Math.min(100, this.maskCompliance + maskDiff)
+    );
+
+    const crowdEl = document.getElementById('total-crowd');
+
+    if (crowdEl) {
+      crowdEl.innerText = this.totalCrowd.toLocaleString();
+    }
+
+    const maskEl = document.getElementById('mask-compliance');
+
+    if (maskEl) {
+      maskEl.innerText = this.maskCompliance.toFixed(1) + '%';
+
+      document.getElementById('mask-progress').style.width =
+        this.maskCompliance.toFixed(1) + '%';
+    }
+
+    if (this.lineChart) {
+      this.crowdHistory.push(this.totalCrowd);
+      this.crowdHistory.shift();
+      this.lineChart.update();
+    }
+
+    if (this.doughnutChart) {
+      this.doughnutChart.data.datasets[0].data = [
+        this.maskCompliance,
+        100 - this.maskCompliance
+      ];
+
+      this.doughnutChart.update();
+    }
+  }
+
+  updateAlertCounters() {
+    const activeEl = document.getElementById('active-alerts');
+    const badgeEl = document.getElementById('nav-badge');
+
+    if (activeEl) {
+      activeEl.innerText = this.activeAlerts;
+    }
+
+    if (badgeEl) {
+      badgeEl.innerText = this.activeAlerts;
+
+      badgeEl.style.display = this.activeAlerts === 0
+        ? 'none'
+        : 'inline-block';
+    }
+  }
+
+  populateInitialAlerts() {
+    this.addAlert(this.alertTemplates[0], '2 mins ago');
+    this.addAlert(this.alertTemplates[1], '12 mins ago');
+    this.addAlert(this.alertTemplates[2], '34 mins ago');
+  }
+
+  generateAlert() {
+    const template = this.alertTemplates[
+      Math.floor(Math.random() * this.alertTemplates.length)
+    ];
+
+    this.addAlert(
+      template,
+      new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      }) + ' (Just now)'
+    );
+
+    if (
+      template.type === 'critical' ||
+      template.type === 'warning'
+    ) {
+      this.activeAlerts++;
+      this.updateAlertCounters();
+    }
+  }
+
+  addAlert(template, timeStr) {
+    const list = document.getElementById('alert-list');
+
+    if (!list) return;
+
+    const alertEl = document.createElement('div');
+
+    alertEl.className = `alert-item ${template.type}`;
+
+    alertEl.innerHTML = `
+      <i class='bx ${template.icon} alert-icon'></i>
+
+      <div class="alert-content">
+        <h4>${template.title}</h4>
+        <p>${template.message}</p>
+      </div>
+
+      <div class="alert-time">${timeStr}</div>
+    `;
+
+    list.prepend(alertEl);
+
+    if (list.children.length > 5) {
+      list.removeChild(list.lastChild);
+    }
+
+    const tbody = document.getElementById('full-alerts-tbody');
+
+    if (!tbody) return;
+
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+      <td>
+        <span style="
+          color: var(--accent-${template.type === 'critical'
+        ? 'red'
+        : template.type === 'warning'
+          ? 'warning'
+          : 'blue'});
+          font-weight:bold;
+          text-transform:uppercase;
+        ">
+          ${template.type}
+        </span>
+      </td>
+
+      <td style="color:var(--text-secondary)">
+        ${timeStr}
+      </td>
+
+      <td>
+        <strong>${template.title}</strong><br>
+
+        <span style="font-size:0.8rem;color:var(--text-secondary)">
+          ${template.message}
+        </span>
+      </td>
+
+      <td>${template.zone}</td>
+
+      <td>
+        <button class="btn-small resolve-btn">Resolve</button>
+      </td>
+    `;
+
+    const resolveBtn = tr.querySelector('.resolve-btn');
+
+    resolveBtn.addEventListener('click', () => {
+      tr.style.opacity = '0.4';
+      resolveBtn.innerHTML = 'Resolved';
+      resolveBtn.disabled = true;
+
+      if (
+        template.type === 'critical' ||
+        template.type === 'warning'
+      ) {
+        this.activeAlerts = Math.max(0, this.activeAlerts - 1);
+        this.updateAlertCounters();
+      }
+    });
+
+    tbody.prepend(tr);
+  }
+}
+
+// ============================================================
+// HAPPY MUSIC PLAYER
+// ============================================================
+let audioCtx = null;
+let lastHappyMusicTime = 0;
+let lastSadMusicTime = 0;
+let lastAngryMusicTime = 0;
+
+function playHappyMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
+  const now = Date.now();
+  if (now - lastHappyMusicTime < 5000) return; // Cooldown
+  lastHappyMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short happy sequence of notes
+  const notes = [
+    { freq: 523.25, time: 0 },
+    { freq: 659.25, time: 0.15 },
+    { freq: 783.99, time: 0.3 },
+    { freq: 1046.50, time: 0.45 }
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + note.time + 0.05);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.15);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.15);
+  });
+}
+
+function playSadMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
+  const now = Date.now();
+  if (now - lastSadMusicTime < 5000) return; // Cooldown
+  lastSadMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short sad sequence of notes (descending, minor)
+  const notes = [
+    { freq: 329.63, time: 0 },    // E4
+    { freq: 311.13, time: 0.4 },  // Eb4
+    { freq: 293.66, time: 0.8 },  // D4
+    { freq: 261.63, time: 1.2 }   // C4
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sine'; // Sine for softer, sadder sound
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + note.time + 0.1);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.4);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.4);
+  });
+}
+
+function playAngryMusic() {
+  if (typeof audioAlertsEnabled !== 'undefined' && !audioAlertsEnabled) return;
+  const now = Date.now();
+  if (now - lastAngryMusicTime < 5000) return; // Cooldown
+  lastAngryMusicTime = now;
+
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+
+  // A short angry sequence of notes (low, fast, dissonant)
+  const notes = [
+    { freq: 150, time: 0 },
+    { freq: 165, time: 0.1 },
+    { freq: 140, time: 0.2 },
+    { freq: 175, time: 0.3 }
+  ];
+
+  notes.forEach(note => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.type = 'sawtooth'; // Sawtooth for harsher, angry sound
+    osc.frequency.setValueAtTime(note.freq, audioCtx.currentTime + note.time);
+    
+    gain.gain.setValueAtTime(0, audioCtx.currentTime + note.time);
+    gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + note.time + 0.02);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + note.time + 0.1);
+    
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    
+    osc.start(audioCtx.currentTime + note.time);
+    osc.stop(audioCtx.currentTime + note.time + 0.1);
+  });
+}
+
+// ============================================================
+// AI WEBCAM + FACE DETECTION + MASK DETECTION
+// ============================================================
+
+class WebcamMaskDetector {
+  constructor() {
+    this.video = document.getElementById('webcam');
+    this.container = document.getElementById('webcam-container');
+
+    this.cam1Count = document.getElementById('cam1-count');
+    this.cam1Density = document.getElementById('cam1-density');
+
+    this.startOverlay = document.getElementById('start-overlay');
+    this.encOverlay = document.getElementById('encryption-overlay');
+
+    this.encLog = document.getElementById('crypto-log');
+    this.encProgress = document.getElementById('crypto-progress');
+    this.encStatus = document.getElementById('status-encrypt');
+
+    this.isNightVision = false;
+
+    this.sensitivity = document.getElementById('sensitivity-range');
+
+    this.init();
+  }
+
+  init() {
+    document.getElementById('btn-start-monitor')?.addEventListener('click', () => {
+      this.startOverlay?.classList.add('hidden');
+      this.initializeAI();
+    });
+
+    document.getElementById('btn-night-vision')?.addEventListener('click', (e) => {
+      this.isNightVision = !this.isNightVision;
+
+      this.video.classList.toggle(
+        'night-vision',
+        this.isNightVision
+      );
+
+      e.currentTarget.classList.toggle(
+        'active',
+        this.isNightVision
+      );
+    });
+
+    document.getElementById('btn-snapshot')?.addEventListener('click', () => {
+      this.takeSnapshot();
+    });
+  }
+
+  async initializeAI() {
+    this.encOverlay?.classList.remove('hidden');
+    this.runEncryptionSequence();
+
+    // ── Step 1: Start the camera immediately ─────────────────────
+    //    Camera opens right away so the user sees the live feed.
+    //    AI model download happens in parallel.
+    this.startVideo();
+
+    // ── Step 2: Download face-api models in background ───────────
+    const MODEL_URL =
+      'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+
+    if (this.cam1Density) {
+      this.cam1Density.innerText = '⏳ Loading AI Models...';
+      this.cam1Density.style.color = '#f59e0b';
+    }
+
+    // Wait until faceapi script has executed (defer may still be running)
+    const waitForFaceApi = () => new Promise((resolve, reject) => {
+      let attempts = 0;
+      const check = setInterval(() => {
+        attempts++;
+        if (typeof faceapi !== 'undefined') { clearInterval(check); resolve(); }
+        if (attempts > 40) { clearInterval(check); reject(new Error('face-api.js not loaded after 10s')); }
+      }, 250);
+    });
+
+    try {
+      await waitForFaceApi();
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
+        faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+      ]);
+      // Models ready — mark AI as active
+      this.modelsLoaded = true;
+      this.tryStartDetection();
+      if (this.cam1Density && this.videoReady) {
+        this.cam1Density.innerText = 'Density: NORMAL';
+        this.cam1Density.style.color = '#10b981';
+      }
+    } catch (e) {
+      console.error('AI Models failed:', e);
+      // Don't block the camera — just show a soft warning
+      if (this.cam1Density) {
+        this.cam1Density.innerText = '⚠ AI unavailable — live feed only';
+        this.cam1Density.style.color = '#f59e0b';
+      }
+    }
+  }
+
+  runEncryptionSequence() {
+    const logs = [
+      'Establishing P2P Tunnel...',
+      'Negotiating TLS 1.3...',
+      'Synchronizing AI Weights...',
+      'Validating Certificates...',
+      'Secure Channel Active.'
+    ];
+
+    let step = 0;
+
+    const interval = setInterval(() => {
+      step++;
+
+      if (this.encProgress) {
+        this.encProgress.style.width =
+          `${(step / logs.length) * 100}%`;
+      }
+
+      if (step < logs.length) {
+        if (this.encLog) {
+          this.encLog.innerText = logs[step];
+        }
+      }
+      else {
+        clearInterval(interval);
+
+        setTimeout(() => {
+          this.encOverlay?.classList.add('hidden');
+
+          if (this.encStatus) {
+            this.encStatus.classList.add('secure');
+
+            this.encStatus.innerHTML =
+              `<i class='bx bx-check-shield'></i> E2E Secured`;
+          }
+        }, 500);
+      }
+    }, 600);
+  }
+
+  startVideo() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      this.handleError('Camera API unavailable');
+      return;
+    }
+
+    navigator.mediaDevices
+      .getUserMedia({
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      })
+      .then(stream => {
+        this.video.srcObject = stream;
+
+        this.video.onloadedmetadata = () => {
+          this.video.play().catch(err => {
+            console.error(err);
+            this.handleError('Autoplay blocked');
+          });
+        };
+
+        this.video.addEventListener('play', () => {
+          this.videoReady = true;
+          if (this.cam1Density && !this.modelsLoaded) {
+            this.cam1Density.innerText = '⏳ Loading AI...';
+            this.cam1Density.style.color = '#f59e0b';
+          }
+          this.tryStartDetection();
+        });
+      })
+      .catch(err => {
+        console.error('Camera Error:', err);
+
+        let errorMessage = 'Camera unavailable';
+        if (err.name === 'NotAllowedError' || err.name === 'SecurityError') {
+          errorMessage = 'Camera permission denied. Please allow access in your browser settings (URL bar) or ensure you are using a secure context (localhost/HTTPS).';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          errorMessage = 'Camera is already in use by another application (like Zoom/Teams) or has a hardware issue.';
+        } else if (err.name === 'NotFoundError') {
+          errorMessage = 'No camera found. Please connect a webcam.';
+        } else {
+          errorMessage = `Camera error: ${err.name} - ${err.message}`;
+        }
+
+        this.handleError(errorMessage);
+      });
+  }
+
+  // Only start AI detection once BOTH camera is playing AND models are loaded
+  tryStartDetection() {
+    if (this.videoReady && this.modelsLoaded && !this.detectionStarted) {
+      this.detectionStarted = true;
+      if (this.cam1Density) {
+        this.cam1Density.innerText = 'Density: NORMAL';
+        this.cam1Density.style.color = '#10b981';
+      }
+      this.onPlay();
+    }
+  }
+
+  handleError(msg) {
+    if (this.cam1Density) {
+      this.cam1Density.innerText = '⚠ ' + msg;
+      this.cam1Density.style.color = '#ef4444';
+    }
+    // Show non-blocking toast instead of blocking alert
+    console.error('Camera/AI Error:', msg);
+  }
+
+  takeSnapshot() {
+    const canvas = document.createElement('canvas');
+
+    canvas.width = this.video.videoWidth;
+    canvas.height = this.video.videoHeight;
+
+    canvas
+      .getContext('2d')
+      .drawImage(this.video, 0, 0);
+
+    const link = document.createElement('a');
+
+    link.download = `snapshot_${Date.now()}.png`;
+    link.href = canvas.toDataURL();
+
+    link.click();
+  }
+
+  onPlay() {
+    const extractCanvas = document.createElement('canvas');
+    const extractCtx = extractCanvas.getContext('2d', {
+      willReadFrequently: true
+    });
+
+    const drawCanvas = faceapi.createCanvasFromMedia(this.video);
+
+    drawCanvas.style.cssText = `
+      z-index:10;
+      pointer-events:none;
+      position:absolute;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
+      transform:scaleX(-1);
+    `;
+
+    this.container.appendChild(drawCanvas);
+
+    this.faceIdMap = [];
+    this.noMaskSet = new Set();
+    this.lastAlertTime = 0;
+
+    const assignId = (box) => {
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+
+      let best = null;
+      let bestDist = 9999;
+
+      this.faceIdMap.forEach(f => {
+        const d = Math.hypot(cx - f.cx, cy - f.cy);
+
+        if (d < 80 && d < bestDist) {
+          bestDist = d;
+          best = f;
+        }
+      });
+
+      if (best) {
+        best.cx = cx;
+        best.cy = cy;
+        return best.id;
+      }
+
+      const id = this.faceIdMap.length + 1;
+
+      this.faceIdMap.push({
+        id,
+        cx,
+        cy
+      });
+
+      if (this.faceIdMap.length > 20) {
+        this.faceIdMap.shift();
+      }
+
+      return id;
+    };
+
+    const isMaskWorn = (landmarks, scaleX, scaleY) => {
+      try {
+        const nose = landmarks.getNose();
+        const jaw = landmarks.getJawOutline();
+
+        const noseTip = nose[6];
+        const chin = jaw[8];
+        const leftCheek = jaw[3];
+        const rightCheek = jaw[13];
+
+        const leftEye = landmarks.getLeftEye()[0];
+        const rightEye = landmarks.getRightEye()[0];
+
+        const foreheadX = Math.round(
+          ((leftEye.x + rightEye.x) / 2) * scaleX
+        );
+
+        const foreheadY = Math.round(
+          (leftEye.y - 35) * scaleY
+        );
+
+        const noseTipPx = extractCtx.getImageData(
+          Math.round(noseTip.x * scaleX),
+          Math.round(noseTip.y * scaleY),
+          4,
+          4
+        ).data;
+
+        const chinPx = extractCtx.getImageData(
+          Math.round(chin.x * scaleX),
+          Math.round(chin.y * scaleY),
+          4,
+          4
+        ).data;
+
+        const foreheadPx = extractCtx.getImageData(
+          foreheadX,
+          foreheadY,
+          4,
+          4
+        ).data;
+
+        const leftPx = extractCtx.getImageData(
+          Math.round(leftCheek.x * scaleX),
+          Math.round(leftCheek.y * scaleY),
+          4,
+          4
+        ).data;
+
+        const rightPx = extractCtx.getImageData(
+          Math.round(rightCheek.x * scaleX),
+          Math.round(rightCheek.y * scaleY),
+          4,
+          4
+        ).data;
+
+        const avg = d => (d[0] + d[1] + d[2]) / 3;
+
+        const skinRef = avg(foreheadPx);
+
+        const noseDiff = Math.abs(avg(noseTipPx) - skinRef);
+        const chinDiff = Math.abs(avg(chinPx) - skinRef);
+        const leftDiff = Math.abs(avg(leftPx) - skinRef);
+        const rightDiff = Math.abs(avg(rightPx) - skinRef);
+
+        const threshold = 30 + (
+          this.sensitivity?.value
+            ? (100 - this.sensitivity.value) * 0.5
+            : 12
+        );
+
+        const avgLowerDiff = (
+          noseDiff +
+          chinDiff +
+          leftDiff +
+          rightDiff
+        ) / 4;
+
+        return avgLowerDiff > threshold;
+
+      } catch (e) {
+        return true;
+      }
+    };
+
+    setInterval(async () => {
+      const displaySize = {
+        width: this.video.clientWidth,
+        height: this.video.clientHeight
+      };
+
+      if (displaySize.width === 0 || this.video.paused) {
+        return;
+      }
+
+      try {
+        faceapi.matchDimensions(drawCanvas, displaySize);
+
+        const detections = await faceapi
+          .detectAllFaces(
+            this.video,
+            new faceapi.TinyFaceDetectorOptions({
+              inputSize: 224,
+              scoreThreshold: 0.5
+            })
+          )
+          .withFaceLandmarks()
+          .withAgeAndGender()
+          .withFaceExpressions();
+
+        const resized = faceapi.resizeResults(
+          detections,
+          displaySize
+        );
+
+        const ctx = drawCanvas.getContext('2d');
+
+        ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+        if (this.cam1Count) {
+          this.cam1Count.innerText = detections.length;
+        }
+
+        if (extractCanvas.width !== this.video.videoWidth) {
+          extractCanvas.width = this.video.videoWidth || 640;
+          extractCanvas.height = this.video.videoHeight || 480;
+        }
+
+        extractCtx.save();
+
+        extractCtx.scale(-1, 1);
+
+        extractCtx.drawImage(
+          this.video,
+          -extractCanvas.width,
+          0,
+          extractCanvas.width,
+          extractCanvas.height
+        );
+
+        extractCtx.restore();
+
+        const scaleX = extractCanvas.width / displaySize.width;
+        const scaleY = extractCanvas.height / displaySize.height;
+
+        let noMaskCount = 0;
+
+        const newViolators = [];
+        const personRows = [];
+
+        resized.forEach(det => {
+          const { box } = det.detection;
+
+          const faceId = assignId(box);
+          const profileEntry = getOrAssignProfile(faceId);
+
+          const masked = isMaskWorn(
+            det.landmarks,
+            scaleX,
+            scaleY
+          );
+
+          const age = det.age
+            ? Math.round(det.age)
+            : '?';
+
+          const aiGender = det.gender
+            ? (det.gender === 'male' ? 'Male' : 'Female')
+            : '?';
+          
+          const gender = profileEntry.profile.gender || aiGender;
+
+          const conf = Math.round(
+            det.detection.score * 100
+          );
+
+          let emotion = '?';
+          if (det.expressions) {
+            const sorted = Object.entries(det.expressions).sort((a, b) => b[1] - a[1]);
+            emotion = sorted[0][0];
+            if (emotion === 'happy') {
+              playHappyMusic();
+            } else if (emotion === 'sad') {
+              playSadMusic();
+            } else if (emotion === 'angry') {
+              playAngryMusic();
+            }
+          }
+
+          if (!masked) {
+            noMaskCount++;
+            newViolators.push({
+              id: faceId,
+              age,
+              gender
+            });
+          }
+
+          personRows.push({
+            id: faceId,
+            age,
+            gender,
+            masked,
+            conf
+          });
+
+          profileEntry.masked = masked;
+
+          if (!profileEntry.gps && liveGPS) {
+            profileEntry.gps = { ...liveGPS };
+          }
+
+          try {
+            const fx = Math.max(
+              0,
+              Math.round(box.x * scaleX)
+            );
+
+            const fy = Math.max(
+              0,
+              Math.round(box.y * scaleY)
+            );
+
+            const fw = Math.min(
+              extractCanvas.width - fx,
+              Math.round(box.width * scaleX)
+            );
+
+            const fh = Math.min(
+              extractCanvas.height - fy,
+              Math.round(box.height * scaleY)
+            );
+
+            if (fw > 10 && fh > 10) {
+              const faceC = document.createElement('canvas');
+
+              faceC.width = fw;
+              faceC.height = fh;
+
+              faceC
+                .getContext('2d')
+                .drawImage(
+                  extractCanvas,
+                  fx,
+                  fy,
+                  fw,
+                  fh,
+                  0,
+                  0,
+                  fw,
+                  fh
+                );
+
+              profileEntry.faceDataUrl = faceC.toDataURL(
+                'image/jpeg',
+                0.7
+              );
+            }
+          } catch (e) {
+            console.error(e);
+          }
+
+          const color = masked
+            ? '#10b981'
+            : '#ef4444';
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2.5;
+
+          const bLen = 16;
+
+          [
+            [box.x, box.y],
+            [box.x + box.width, box.y],
+            [box.x, box.y + box.height],
+            [box.x + box.width, box.y + box.height]
+          ].forEach(([cx, cy], i) => {
+            ctx.beginPath();
+
+            ctx.moveTo(
+              cx + (i % 2 === 0 ? bLen : -bLen),
+              cy
+            );
+
+            ctx.lineTo(cx, cy);
+
+            ctx.lineTo(
+              cx,
+              cy + (i < 2 ? bLen : -bLen)
+            );
+
+            ctx.stroke();
+          });
+
+          const regName = profileEntry.profile.name.split(' ')[0];
+
+          const label = masked
+            ? `MASK ON · ${emotion.toUpperCase()} · ${regName}`
+            : `NO MASK · ${emotion.toUpperCase()} · ${regName}`;
+
+          ctx.font = 'bold 11px Inter, monospace';
+
+          const labelW = ctx.measureText(label).width + 16;
+
+          ctx.fillStyle = masked
+            ? 'rgba(16,185,129,0.92)'
+            : 'rgba(239,68,68,0.92)';
+
+          ctx.beginPath();
+
+          ctx.roundRect(
+            box.x,
+            box.y - 28,
+            labelW,
+            24,
+            4
+          );
+
+          ctx.fill();
+
+          ctx.fillStyle = '#fff';
+          ctx.save();
+          ctx.translate(box.x + labelW, box.y - 11);
+          ctx.scale(-1, 1);
+          ctx.fillText(label, 8, 0);
+          ctx.restore();
+
+          const infoLabel =
+            `${profileEntry.profile.dept} · ~${age}yr · ${emotion}`;
+
+          ctx.font = '10px Inter, monospace';
+
+          const infoW = ctx.measureText(infoLabel).width + 14;
+
+          ctx.fillStyle = 'rgba(10,15,30,0.82)';
+
+          ctx.beginPath();
+
+          ctx.roundRect(
+            box.x,
+            box.y + box.height + 2,
+            infoW,
+            20,
+            4
+          );
+
+          ctx.fill();
+
+          ctx.fillStyle = '#e2e8f0';
+          ctx.save();
+          ctx.translate(box.x + infoW, box.y + box.height + 15);
+          ctx.scale(-1, 1);
+          ctx.fillText(infoLabel, 7, 0);
+          ctx.restore();
+        });
+
+        if (this.cam1Density) {
+          if (noMaskCount === 0) {
+            this.cam1Density.innerText = '✓ All Masked';
+            this.cam1Density.style.color = '#10b981';
+          }
+          else {
+            this.cam1Density.innerText =
+              `⚠ ${noMaskCount} WITHOUT MASK`;
+
+            this.cam1Density.style.color = '#ef4444';
+          }
+        }
+
+        updateViolatorsPanel(newViolators, noMaskCount);
+
+        updatePersonsTable(personRows);
+
+        const now = Date.now();
+
+        if (
+          noMaskCount > 0 &&
+          now - this.lastAlertTime > 8000
+        ) {
+          this.lastAlertTime = now;
+
+          window._dashSim?.addAlert(
+            {
+              type: 'critical',
+              title: 'No-Mask Violation Detected',
+              message: `${noMaskCount} person(s) without mask — Cam 01 Live Feed`,
+              icon: 'bx-mask',
+              zone: 'Cam 01 - Entrance'
+            },
+            new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit'
+            }) + ' (Live)'
+          );
+
+          if (window._dashSim) {
+            window._dashSim.activeAlerts++;
+          }
+
+          window._dashSim?.updateAlertCounters();
+        }
+
+      } catch (err) {
+        console.error('AI Thread Error', err);
+      }
+
+    }, 180);
+  }
+}
+
+// ============================================================
+// VIOLATORS PANEL
+// ============================================================
+
+function updateViolatorsPanel(violatorList, count) {
+  const panel = document.getElementById('no-mask-panel');
+  const countEl = document.getElementById('no-mask-count');
+  const listEl = document.getElementById('no-mask-list');
+
+  if (!panel || !listEl) return;
+
+  if (countEl) {
+    countEl.innerText = count;
+  }
+
+  panel.classList.toggle('panel-alert', count > 0);
+
+  if (count === 0) {
+    listEl.innerHTML = `
+      <div class="vmsg">
+        <i class="bx bx-check-shield"></i>
+        All persons compliant
+      </div>
+    `;
+
+    return;
+  }
+
+  const now = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+
+  const existing = new Set(
+    [...listEl.querySelectorAll('.vcard')]
+      .map(el => el.dataset.id)
+  );
+
+  violatorList.forEach(({ id, age, gender }) => {
+    const sid = String(id);
+
+    if (existing.has(sid)) {
+      const el = listEl.querySelector(
+        `.vcard[data-id="${sid}"]`
+      );
+
+      if (el) {
+        el.querySelector('.vtime').innerText = now;
+      }
+
+      return;
+    }
+
+    const card = document.createElement('div');
+
+    card.className = 'vcard';
+    card.dataset.id = sid;
+
+    card.innerHTML = `
+      <div class="vface">
+        <i class="bx bx-user"></i>
+      </div>
+
+      <div class="vinfo">
+        <span class="vtitle">Face ID #${sid}</span>
+        <span class="vmeta">${gender}, ~${age}yr</span>
+        <span class="vstatus">
+          NO MASK
+          <i class="bx bx-error-circle"></i>
+        </span>
+        <span class="vtime">${now}</span>
+      </div>
+    `;
+
+    listEl.prepend(card);
+  });
+
+  const violatorIds = violatorList.map(v => v.id);
+
+  [...listEl.querySelectorAll('.vcard')].forEach(el => {
+    if (!violatorIds.includes(Number(el.dataset.id))) {
+      el.style.opacity = '0.35';
+
+      const st = el.querySelector('.vstatus');
+
+      if (st) {
+        st.innerHTML =
+          'CLEARED <i class="bx bx-check"></i>';
+
+        st.style.color = '#10b981';
+      }
+    }
+  });
+
+  while (listEl.children.length > 10) {
+    listEl.removeChild(listEl.lastChild);
+  }
+}
+
+// ============================================================
+// PERSONS TABLE
+// ============================================================
+
+function updatePersonsTable(persons) {
+  const tbody = document.getElementById('persons-tbody');
+  const countEl = document.getElementById('persons-count');
+
+  if (!tbody) return;
+
+  if (countEl) {
+    countEl.innerText = persons.length;
+  }
+
+  if (persons.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7"
+            style="
+              text-align:center;
+              color:var(--text-secondary);
+              padding:1rem;
+            ">
+          <i class="bx bx-search-alt"></i>
+          Scanning for faces...
+        </td>
+      </tr>
+    `;
+
+    return;
+  }
+
+  tbody.innerHTML = '';
+
+  persons.forEach(p => {
+    const entry = faceProfileMap.get(p.id);
+    const reg = entry?.profile;
+
+    const gps = entry?.gps || liveGPS;
+
+    const gpsText = gps
+      ? `${gps.lat}°N ${gps.lng}°E`
+      : '—';
+
+    const tr = document.createElement('tr');
+
+    tr.style.cursor = 'pointer';
+    tr.title = 'Click to open profile';
+
+    tr.innerHTML = `
+      <td>
+        <span class="pid-badge">#${p.id}</span>
+      </td>
+
+      <td>
+        <div class="reg-name">
+          ${reg ? reg.name : 'Unregistered'}
+        </div>
+
+        <div class="reg-sub">
+          ${reg ? reg.regId : '—'}
+        </div>
+      </td>
+
+      <td>
+        <div class="reg-sub">
+          ${reg ? reg.dept : '—'}
+        </div>
+
+        <div class="reg-sub"
+             style="color:var(--accent-cyan)">
+          ${reg ? reg.role : ''}
+        </div>
+      </td>
+
+      <td>
+        <span class="mask-pill ${p.masked ? 'pill-ok' : 'pill-no'}">
+          ${p.masked ? '✓ Mask On' : '✗ No Mask'}
+        </span>
+      </td>
+
+      <td>
+        <div class="gps-cell">
+          <i class="bx bx-map-pin"
+             style="
+               color:var(--accent-cyan);
+               font-size:0.9rem;
+             "></i>
+
+          <span class="gps-cell-coords">
+            ${gpsText}
+          </span>
+
+          ${gps?.city
+        ? `<span class="gps-cell-city">${gps.city}</span>`
+        : ''}
+        </div>
+      </td>
+
+      <td class="conf-cell">
+        ${p.conf}%
+      </td>
+
+      <td>
+        <button class="btn-profile"
+                data-id="${p.id}">
+          <i class="bx bx-user-detail"></i>
+        </button>
+      </td>
+    `;
+
+    tr.addEventListener('click', () => {
+      showProfilePanel(p.id);
+    });
+
+    tbody.appendChild(tr);
+  });
+}
+
+// ============================================================
+// PROFILE PANEL
+// ============================================================
+
+function showProfilePanel(faceId) {
+  const entry = faceProfileMap.get(faceId);
+
+  if (!entry) return;
+
+  const {
+    profile,
+    faceDataUrl,
+    entryTime,
+    masked
+  } = entry;
+
+  const panel = document.getElementById('profile-panel');
+
+  if (!panel) return;
+
+  panel.querySelector('#pp-face').src = faceDataUrl || '';
+
+  panel.querySelector('#pp-face').style.display =
+    faceDataUrl ? 'block' : 'none';
+
+  panel.querySelector('#pp-no-face').style.display =
+    faceDataUrl ? 'none' : 'flex';
+
+  panel.querySelector('#pp-name').textContent = profile.name;
+  panel.querySelector('#pp-regid').textContent = profile.regId;
+  panel.querySelector('#pp-dept').textContent = profile.dept;
+  panel.querySelector('#pp-role').textContent = profile.role;
+  panel.querySelector('#pp-phone').textContent = profile.phone;
+  panel.querySelector('#pp-email').textContent = profile.email;
+  panel.querySelector('#pp-entry').textContent = entryTime;
+  panel.querySelector('#pp-faceid').textContent = `#${faceId}`;
+
+  const gps = entry.gps || liveGPS;
+
+  const gpsEl = panel.querySelector('#pp-gps');
+  const addrEl = panel.querySelector('#pp-gps-addr');
+
+  if (gpsEl) {
+    gpsEl.textContent = gps
+      ? `${gps.lat}° N, ${gps.lng}° E (±${gps.accuracy}m)`
+      : '—';
+  }
+
+  if (addrEl) {
+    addrEl.textContent = gps?.city
+      ? gps.city
+      : '';
+  }
+
+  const statusEl = panel.querySelector('#pp-status');
+
+  statusEl.textContent = profile.status;
+
+  statusEl.className =
+    'pp-status-badge ' +
+    (profile.status === 'Active'
+      ? 'status-active'
+      : 'status-suspended');
+
+  const maskEl = panel.querySelector('#pp-mask');
+
+  maskEl.textContent = masked
+    ? '✓ Mask Compliant'
+    : '✗ No Mask';
+
+  maskEl.className =
+    'pp-mask-badge ' +
+    (masked ? 'mask-ok' : 'mask-no');
+
+  panel.classList.add('open');
+}
+
+// ============================================================
+// GLOBAL INIT
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  initGPS();
+  initRouting();
+  initThemeToggle();
+  initSettings();
+
+  window._dashSim = new DashboardSim();
+  window._webcamSim = new WebcamMaskDetector();
+
+  const closePanel = () => {
+    document.getElementById('profile-panel')
+      ?.classList.remove('open');
+
+    document.getElementById('profile-backdrop')
+      ?.classList.add('hidden');
+  };
+
+  document.getElementById('pp-close')
+    ?.addEventListener('click', closePanel);
+
+  document.getElementById('profile-backdrop')
+    ?.addEventListener('click', closePanel);
+
+  const panel = document.getElementById('profile-panel');
+  const backdrop = document.getElementById('profile-backdrop');
+
+  if (panel && backdrop) {
+    new MutationObserver(() => {
+      backdrop.classList.toggle(
+        'hidden',
+        !panel.classList.contains('open')
+      );
+    }).observe(panel, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+  }
+});
+
+// ============================================================
+// SETTINGS LOGIC
+// ============================================================
+let audioAlertsEnabled = true;
+let strictMaskDetection = false;
+let globalSensitivity = 75;
+let crowdThreshold = 15000;
+let desktopNotifications = false;
+
+function initSettings() {
+  const themeToggle = document.getElementById('setting-theme-toggle');
+  const audioToggle = document.getElementById('setting-audio-toggle');
+  const sensSlider = document.getElementById('setting-global-sensitivity');
+  const sensVal = document.getElementById('setting-sensitivity-val');
+  const strictMask = document.getElementById('setting-strict-mask');
+  const crowdThresh = document.getElementById('setting-crowd-threshold');
+  const desktopNotif = document.getElementById('setting-desktop-notif');
+
+  // Load from localStorage if exists
+  if (localStorage.getItem('theme-hc') === 'true') {
+    document.body.classList.add('high-contrast');
+    if (themeToggle) themeToggle.checked = true;
+    const headerThemeBtn = document.getElementById('theme-toggle');
+    if (headerThemeBtn) {
+      headerThemeBtn.innerHTML = `<i class='bx bx-sun'></i> Standard View`;
+    }
+  }
+
+  if (themeToggle) {
+    themeToggle.addEventListener('change', (e) => {
+      document.body.classList.toggle('high-contrast', e.target.checked);
+      localStorage.setItem('theme-hc', e.target.checked);
+      
+      const headerThemeBtn = document.getElementById('theme-toggle');
+      if (headerThemeBtn) {
+        headerThemeBtn.innerHTML = e.target.checked 
+          ? `<i class='bx bx-sun'></i> Standard View`
+          : `<i class='bx bx-moon'></i> High Contrast`;
+      }
+    });
+  }
+
+  if (audioToggle) {
+    audioToggle.addEventListener('change', (e) => {
+      audioAlertsEnabled = e.target.checked;
+    });
+  }
+
+  if (sensSlider) {
+    sensSlider.addEventListener('input', (e) => {
+      globalSensitivity = e.target.value;
+      if (sensVal) sensVal.innerText = globalSensitivity + '%';
+      
+      // Update the dashboard slider too
+      const dashSlider = document.getElementById('sensitivity-range');
+      if (dashSlider) dashSlider.value = globalSensitivity;
+      
+      if (window._dashSim) window._dashSim.sensitivity = globalSensitivity / 100;
+    });
+  }
+
+  if (strictMask) {
+    strictMask.addEventListener('change', (e) => {
+      strictMaskDetection = e.target.checked;
+    });
+  }
+
+  if (crowdThresh) {
+    crowdThresh.addEventListener('change', (e) => {
+      crowdThreshold = parseInt(e.target.value) || 15000;
+    });
+  }
+
+  if (desktopNotif) {
+    desktopNotif.addEventListener('change', (e) => {
+      desktopNotifications = e.target.checked;
+      if (e.target.checked && typeof Notification !== 'undefined' && Notification.permission !== "granted") {
+        Notification.requestPermission().then(perm => {
+          if (perm !== "granted") {
+            e.target.checked = false;
+            desktopNotifications = false;
+          }
+        });
+      }
+    });
+  }
+}
