@@ -439,6 +439,121 @@ class DashboardSim {
         }
       });
     }
+
+    // --------------------------------------------------------
+    // Demographics Chart (Stacked Bar)
+    // --------------------------------------------------------
+    const ctxDemo = document.getElementById('demographicsChart')?.getContext('2d');
+    if (ctxDemo) {
+      this.demographicsChart = new Chart(ctxDemo, {
+        type: 'bar',
+        data: {
+          labels: ['<18', '18-25', '26-40', '41-60', '60+'],
+          datasets: [
+            {
+              label: 'Male',
+              data: [120, 450, 600, 320, 80],
+              backgroundColor: '#3b82f6',
+            },
+            {
+              label: 'Female',
+              data: [110, 420, 580, 290, 95],
+              backgroundColor: '#ec4899',
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+            y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+          },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { color: '#f8fafc', font: { family: 'Inter' } }
+            }
+          }
+        }
+      });
+    }
+
+    // --------------------------------------------------------
+    // Emotion Distribution Chart (Radar)
+    // --------------------------------------------------------
+    const ctxEmotion = document.getElementById('emotionChart')?.getContext('2d');
+    if (ctxEmotion) {
+      this.emotionChart = new Chart(ctxEmotion, {
+        type: 'radar',
+        data: {
+          labels: ['Neutral', 'Happy', 'Sad', 'Angry', 'Fearful', 'Surprised'],
+          datasets: [{
+            label: 'Current Sentiment',
+            data: [65, 20, 5, 5, 2, 3],
+            backgroundColor: 'rgba(239, 68, 68, 0.2)',
+            borderColor: '#ef4444',
+            pointBackgroundColor: '#ef4444',
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              angleLines: { color: 'rgba(255,255,255,0.1)' },
+              grid: { color: 'rgba(255,255,255,0.1)' },
+              pointLabels: { color: '#f8fafc', font: { family: 'Inter' } },
+              ticks: { display: false, backdropColor: 'transparent' }
+            }
+          },
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // --------------------------------------------------------
+    // Zone Risk Assessment Chart (Polar Area)
+    // --------------------------------------------------------
+    const ctxZone = document.getElementById('zoneRiskChart')?.getContext('2d');
+    if (ctxZone) {
+      this.zoneRiskChart = new Chart(ctxZone, {
+        type: 'polarArea',
+        data: {
+          labels: ['Entrance', 'VIP Lane', 'Food Court', 'Plaza', 'West Gate'],
+          datasets: [{
+            data: [85, 20, 45, 60, 75],
+            backgroundColor: [
+              'rgba(239, 68, 68, 0.7)',
+              'rgba(16, 185, 129, 0.7)',
+              'rgba(59, 130, 246, 0.7)',
+              'rgba(245, 158, 11, 0.7)',
+              'rgba(168, 85, 247, 0.7)'
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            r: {
+              grid: { color: 'rgba(255,255,255,0.1)' },
+              ticks: { display: false, backdropColor: 'transparent' }
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#f8fafc', font: { family: 'Inter', size: 10 } }
+            }
+          }
+        }
+      });
+    }
   }
 
   startSimulation() {
@@ -485,6 +600,32 @@ class DashboardSim {
       ];
 
       this.doughnutChart.update();
+    }
+
+    if (this.demographicsChart) {
+      const dataM = this.demographicsChart.data.datasets[0].data;
+      const dataF = this.demographicsChart.data.datasets[1].data;
+      for (let i = 0; i < dataM.length; i++) {
+        dataM[i] = Math.max(10, dataM[i] + Math.floor(Math.random() * 11) - 5);
+        dataF[i] = Math.max(10, dataF[i] + Math.floor(Math.random() * 11) - 5);
+      }
+      this.demographicsChart.update();
+    }
+
+    if (this.emotionChart) {
+      const dataE = this.emotionChart.data.datasets[0].data;
+      for (let i = 0; i < dataE.length; i++) {
+        dataE[i] = Math.max(0, dataE[i] + Math.floor(Math.random() * 5) - 2);
+      }
+      this.emotionChart.update();
+    }
+
+    if (this.zoneRiskChart) {
+      const dataZ = this.zoneRiskChart.data.datasets[0].data;
+      for (let i = 0; i < dataZ.length; i++) {
+        dataZ[i] = Math.max(5, Math.min(100, dataZ[i] + Math.floor(Math.random() * 7) - 3));
+      }
+      this.zoneRiskChart.update();
     }
   }
 
