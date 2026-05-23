@@ -175,10 +175,26 @@ function getOrAssignProfile(faceId) {
     return faceProfileMap.get(faceId);
   }
 
-  const profile = REGISTERED_DB[(faceId - 1) % REGISTERED_DB.length];
+  // Use a registered profile if available, otherwise create an unregistered placeholder
+  const registeredProfile =
+    REGISTERED_DB.length > 0
+      ? REGISTERED_DB[(faceId - 1) % REGISTERED_DB.length]
+      : null;
+
+  const profile = registeredProfile || {
+    name: 'Unregistered',
+    regId: '—',
+    dept: 'Unknown',
+    role: 'Visitor',
+    phone: '—',
+    email: '—',
+    status: 'Unknown',
+    gender: ''
+  };
 
   const entry = {
     profile,
+    isRegistered: !!registeredProfile,
     faceDataUrl: null,
     entryTime: new Date().toLocaleTimeString([], {
       hour: '2-digit',
@@ -1489,7 +1505,9 @@ class WebcamMaskDetector {
             ctx.stroke();
           });
 
-          const regName = profileEntry.profile.name.split(' ')[0];
+          const regName = profileEntry.isRegistered
+            ? profileEntry.profile.name.split(' ')[0]
+            : 'UNKNOWN';
 
           const label = masked
             ? `MASK ON · ${emotion.toUpperCase()} · ${regName}`
@@ -1522,8 +1540,9 @@ class WebcamMaskDetector {
           ctx.fillText(label, 8, 0);
           ctx.restore();
 
-          const infoLabel =
-            `${profileEntry.profile.dept} · ~${age}yr · ${emotion}`;
+          const infoLabel = profileEntry.isRegistered
+            ? `${profileEntry.profile.dept} · ~${age}yr · ${emotion}`
+            : `Unregistered · ~${age}yr · ${emotion}`;
 
           ctx.font = '10px Inter, monospace';
 
@@ -1880,23 +1899,26 @@ function showProfilePanel(faceId) {
 
   const statusEl = panel.querySelector('#pp-status');
 
-  statusEl.textContent = profile.status;
-
-  statusEl.className =
-    'pp-status-badge ' +
-    (profile.status === 'Active'
-      ? 'status-active'
-      : 'status-suspended');
+  if (statusEl) {
+    statusEl.textContent = entry.isRegistered ? profile.status : 'Unregistered';
+    statusEl.className =
+      'pp-status-badge ' +
+      (entry.isRegistered && profile.status === 'Active'
+        ? 'status-active'
+        : 'status-suspended');
+  }
 
   const maskEl = panel.querySelector('#pp-mask');
 
-  maskEl.textContent = masked
-    ? '✓ Mask Compliant'
-    : '✗ No Mask';
+  if (maskEl) {
+    maskEl.textContent = masked
+      ? '✓ Mask Compliant'
+      : '✗ No Mask';
 
-  maskEl.className =
-    'pp-mask-badge ' +
-    (masked ? 'mask-ok' : 'mask-no');
+    maskEl.className =
+      'pp-mask-badge ' +
+      (masked ? 'mask-ok' : 'mask-no');
+  }
 
   panel.classList.add('open');
 }
